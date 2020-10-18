@@ -39,3 +39,24 @@ Once you confirm that it is working, you'll want to make a new cronjob so that i
 ```
 */5 * * * * python3 ~/PynamicDNS/PynamicDNS.py pynamicdns.tynick.com X0XXXXXX000X0
 ```
+
+## Update multiple records at once
+
+You can update multiple records at once by supplying an json file with the records. Example can be found in `config.json`
+
+Example invocation:
+
+```
+root@raspberrypi:~# python3 ~/PynamicDNS/PynamicDNS.py ~/PynamicDNS/config.json
+---------------------------
+Public IP:             xx.xx.xx.xx
+pynamicdns.tynick.com: xx.xx.xx.xx
+---------------------------
+NO CHANGE NEEDED
+---------------------------
+Public IP:                  xx.xx.xx.xx
+blog.pynamicdns.tynick.com: xx.xx.xx.xx
+---------------------------
+NO CHANGE NEEDED
+root@raspberrypi:~#
+```

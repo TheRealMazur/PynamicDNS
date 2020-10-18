@@ -1,26 +1,41 @@
-import requests
-import boto3
+import argparse
+import json
 import sys
-# the purpose of this script is to change an AWS DNS record to match your current public ip
 
-# script should be run like this...
-# python3 pynamic_dns.py <DNS_RECORD> <HOSTED_ZONE_ID>
-# python3 pynamic_dns.py pynamicdns.tynick.com X0XXXXXX000X0
+import boto3
+import requests
 
-try:
-    # make sure it exists already or it will make it and the script will fail on first run.
-    # example... home.example.com
-    DNS_RECORD = sys.argv[1]
-    # aws hosted zone id for your domain
-    ZONE_ID = sys.argv[2]
-except:
-    print('FAILED - check that you are launching the script with the proper arguments')
+
+def parse_arguments():
+    parser=argparse.ArgumentParser(
+        description='''The purpose of this script is to change an AWS DNS record to match your current public ip''')
+    parser.add_argument('DNS_RECORD', type=str, nargs='?', 
+        help='''Route 53 DNS record, for example pynamicdns.tynick.com
+                Warning! the record must already exist!''')
+    parser.add_argument('HOSTED_ZONE_ID', type=str, nargs='?', help='Route 53 Hosted zone ID, for example X0XXXXXX000X0')
+    parser.add_argument('-c', '--config', help='Path to a json file with records to update')
+    args=parser.parse_args()
+
+    if args.DNS_RECORD and args.HOSTED_ZONE_ID:
+        return [{'DNS_RECORD': args.DNS_RECORD,'HOSTED_ZONE_ID': args.HOSTED_ZONE_ID}]
+    if args.config:
+        try:
+            with open(args.config) as json_file:
+                config_json = json.load(json_file)
+        except:
+            print('Supplied json file is not valid!')
+            exit()
+        return config_json
+    parser.print_help()
+    exit()
+
+records = parse_arguments()
 
 try:
     client = boto3.client('route53')
 except:
     print('FAILED - Check that boto3 is installed and that you populated your ~/.aws/ credentials and config files')
-    sys.exit()
+    exit()
 
 # get your public ip
 def get_public_ip():
@@ -28,12 +43,12 @@ def get_public_ip():
     return public_ip
 
 # get the value of your DNS record from Route53
-def get_record_value():
+def get_record_value(record):
     # attempt to get value of DNS record
     try:
         response = client.test_dns_answer(
-            HostedZoneId=ZONE_ID,
-            RecordName=DNS_RECORD,
+            HostedZoneId=record['HOSTED_ZONE_ID'],
+            RecordName=record['DNS_RECORD'],
             RecordType='A',
         )
     except:
@@ -48,21 +63,21 @@ def get_record_value():
             response = 'FAILED'
     except:
         # this means response['ResponseMetadata']['HTTPStatusCode'] didnt exist
-        response = 'FAILED - Check ZONE_ID and DNS_RECORD in AWS'
+        response = 'FAILED - Check HOSTED_ZONE_ID and DNS_RECORD in AWS'
     return response
 
-def change_record_value(public_ip):
+def change_record_value(public_ip, record):
     # attempt to change the value of the Route53 DNS record
     try:
         response = client.change_resource_record_sets(
-            HostedZoneId=ZONE_ID,
+            HostedZoneId=record['HOSTED_ZONE_ID'],
             ChangeBatch={
                 'Comment': 'PynamicDNS Change',
                 'Changes': [
                     {
                         'Action': 'UPSERT',
                         'ResourceRecordSet': {
-                            'Name': DNS_RECORD,
+                            'Name': record['DNS_RECORD'],
                         'Type': 'A',
                         'TTL': 300,
                         'ResourceRecords': [
@@ -88,20 +103,21 @@ def change_record_value(public_ip):
     return response
 
 public_ip = get_public_ip()
-record_value = get_record_value()
-# this just formats some output and assumes DNS_RECORD+2 is more chars than 'Public IP: '
-padding = len(DNS_RECORD) + 2 - len('Public IP: ')
-print('---------------------------')
-print('Public IP: {0}{1}'.format(padding * ' ', public_ip))
-print('{0}: {1}'.format(DNS_RECORD, record_value))
-print('---------------------------')
+for record in records:
+    record_value = get_record_value(record)
+    # this just formats some output and assumes DNS_RECORD+2 is more chars than 'Public IP: '
+    padding = len(record['DNS_RECORD']) + 2 - len('Public IP: ')
+    print('---------------------------')
+    print('Public IP: {0}{1}'.format(padding * ' ', public_ip))
+    print('{0}: {1}'.format(record['DNS_RECORD'], record_value))
+    print('---------------------------')
 
-# if IP changed, change the Route53 record
-# if not, do nothing
-if public_ip != record_value:
-    print("DNS VALUE DOES NOT MATCH PUBLIC IP")
-    # change record value to current public_ip
-    print(change_record_value(public_ip))
-    print('Check https://console.aws.amazon.com/route53/home#resource-record-sets:{0} to verify your DNS change'.format(ZONE_ID))
-else:
-    print("NO CHANGE NEEDED")
+    # if IP changed, change the Route53 record
+    # if not, do nothing
+    if public_ip != record_value:
+        print("DNS VALUE DOES NOT MATCH PUBLIC IP")
+        # change record value to current public_ip
+        print(change_record_value(public_ip, record))
+        print('Check https://console.aws.amazon.com/route53/home#resource-record-sets:{0} to verify your DNS change'.format(record['HOSTED_ZONE_ID']))
+    else:
+        print("NO CHANGE NEEDED")

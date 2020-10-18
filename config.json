@@ -1,0 +1,10 @@
+[
+    {
+        "DNS_RECORD": "pynamicdns.tynick.com",
+        "HOSTED_ZONE_ID": "X0XXXXXX000X0"
+    },
+    {
+        "DNS_RECORD": "blog.pynamicdns.tynick.com",
+        "HOSTED_ZONE_ID": "X0XXXXXX000X0"
+    }
+]
